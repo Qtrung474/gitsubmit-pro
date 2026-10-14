@@ -131,8 +131,8 @@ document.addEventListener('DOMContentLoaded', () => {
       tabSingleMode.classList.remove('active');
       singleModeFields.classList.add('hidden');
       batchModeBanner.classList.remove('hidden');
-      dropTitleText.textContent = 'Kéo & Thả các file bài tập vào đây (Bai1, Bai2, BTTH...)';
-      dropSubtitleText.textContent = 'Mỗi file bài tập sẽ tự động tạo thành 1 Repo và 1 link riêng biệt!';
+      dropTitleText.textContent = 'Kéo & Thả các thư mục bài tập (Bai1, Bai2...) hoặc file vào đây';
+      dropSubtitleText.textContent = 'Tự động gom file theo thư mục và tạo link nộp bài riêng cho từng bài!';
       submitBtnText.textContent = 'Tạo Repo & Lấy Link Nộp Bài';
       filesSummaryCard.classList.add('hidden');
       if (state.batchItems.length > 0) {
@@ -189,22 +189,31 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function cleanBaseFileName(fileName) {
-    // Lấy tên không đuôi: Bai1.cpp -> Bai1, BTTH_Session2.java -> BTTH
-    const base = fileName.substring(0, fileName.lastIndexOf('.')) || fileName;
-    // Bỏ ký tự thừa nhưng giữ nguyên chữ hoa/thường
-    return base.replace(/[^a-zA-Z0-9_-]/g, '');
+    let base = fileName;
+    const dotIndex = fileName.lastIndexOf('.');
+    // Nếu có đuôi mở rộng file (.cpp, .c, .docx,...) thì cắt đuôi
+    if (dotIndex > 0) {
+      base = fileName.substring(0, dotIndex);
+    }
+    // Chuyển dấu cách thành _ và loại bỏ ký tự không an toàn cho tên repo GitHub
+    return base.trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '') || 'Exercise';
   }
 
   function generateRepoNameForBatchItem(cleanName) {
     const session = inputSessionNumber ? inputSessionNumber.value.trim() : 'Session2';
     const subject = inputSubjectName ? inputSubjectName.value.trim() : 'IT206';
 
-    // Nếu tên file đã có sẵn Session hoặc Subject thì tránh lặp
     let base = cleanName;
-    if (base.toLowerCase().includes(session.toLowerCase())) {
-      return `${base}_${subject}`;
+    if (session && base.toLowerCase().includes(session.toLowerCase())) {
+      if (subject && !base.toLowerCase().includes(subject.toLowerCase())) {
+        return `${base}_${subject}`;
+      }
+      return base;
     }
-    return `${base}_${session}_${subject}`;
+    const parts = [base];
+    if (session) parts.push(session);
+    if (subject) parts.push(subject);
+    return parts.join('_');
   }
 
   function generateStandardRepoName() {
@@ -423,7 +432,7 @@ git push -u origin main`;
     showToast('Đã tạo tên repo chuẩn hóa mới', 'info');
   });
 
-  // --- File Selection Logic ---
+  // --- File Selection Logic & Smart Folder Detection ---
   function isPathIgnored(path) {
     const normalized = path.replace(/\\/g, '/');
     return IGNORED_PATTERNS.some(pat => {
@@ -431,56 +440,269 @@ git push -u origin main`;
     });
   }
 
-  function handleFilesSelected(filesList) {
-    if (state.currentMode === 'batch') {
-      handleBatchFilesSelected(filesList);
-    } else {
-      handleSingleFilesSelected(filesList);
-    }
-  }
-
-  // --- Batch Mode Handling: Mỗi file là 1 bài ---
-  function handleBatchFilesSelected(filesList) {
-    let addedCount = 0;
-
-    for (let i = 0; i < filesList.length; i++) {
-      const file = filesList[i];
-      const relativePath = file.webkitRelativePath || file.name;
-      if (isPathIgnored(relativePath)) continue;
-
-      const fileName = file.name;
-      const cleanName = cleanBaseFileName(fileName);
-      const repoName = generateRepoNameForBatchItem(cleanName);
-
-      // Tránh trùng lặp file cùng tên đã có trong danh sách
-      const alreadyExists = state.batchItems.some(it => it.filename === fileName);
-      if (!alreadyExists) {
-        state.batchItems.push({
-          file: file,
-          filename: fileName,
-          cleanName: cleanName,
-          repoName: repoName,
-          status: 'pending' // 'pending', 'uploading', 'done', 'error'
+  function normalizeFileList(rawList) {
+    if (!rawList) return [];
+    const result = [];
+    for (let i = 0; i < rawList.length; i++) {
+      const item = rawList[i];
+      if (item && item.file) {
+        result.push({
+          file: item.file,
+          fullPath: item.fullPath || item.file.webkitRelativePath || item.file.name
         });
-        addedCount++;
+      } else if (item instanceof File) {
+        result.push({
+          file: item,
+          fullPath: item.webkitRelativePath || item.name
+        });
       }
     }
+    return result;
+  }
 
-    // Reset input value để người dùng có thể chọn tiếp file cùng tên hoặc chọn file mới ngay lập tức
-    fileFilesInput.value = '';
-    fileFolderInput.value = '';
-
-    if (addedCount === 0 && state.batchItems.length === 0) {
-      showToast('Không có file hợp lệ nào được chọn!', 'error');
+  function handleFilesSelected(rawList) {
+    const list = normalizeFileList(rawList);
+    if (list.length === 0) {
+      showToast('Không có tệp tin hợp lệ nào được chọn!', 'error');
       return;
     }
 
+    if (state.currentMode === 'batch') {
+      handleBatchFilesSelected(list);
+    } else {
+      handleSingleFilesSelected(list);
+    }
+  }
+
+  // --- Thuật Toán Tự Động Phân Loại Thư Mục & Bài Tập Thông Minh ---
+  function groupCollectedFilesIntoAssignments(collectedList) {
+    // 1. Chuẩn hóa path và loại bỏ file bị bỏ qua
+    const validItems = [];
+    for (const it of collectedList) {
+      let p = it.fullPath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+      if (!isPathIgnored(p)) {
+        validItems.push({
+          file: it.file,
+          fullPath: p,
+          segments: p.split('/')
+        });
+      }
+    }
+
+    if (validItems.length === 0) return [];
+
+    // Tự động nhận diện Session từ đường dẫn (ví dụ: Session 10 -> Session10)
+    for (const item of validItems) {
+      for (const seg of item.segments) {
+        const match = seg.match(/(Session|Buoi|Lab|BTVN)[_\s-]*(\d+)/i);
+        if (match && inputSessionNumber) {
+          const detectedSession = `${match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase()}${match[2]}`;
+          if (!inputSessionNumber.value || ['session2', 'session5'].includes(inputSessionNumber.value.trim().toLowerCase())) {
+            inputSessionNumber.value = detectedSession;
+            saveStudentPreferences();
+            updateRepoNameSuggestion();
+            showToast(`Đã tự động nhận diện buổi học: ${detectedSession}`, 'info');
+          }
+          break;
+        }
+      }
+    }
+
+    // 2. Kiểm tra xem các file có chung thư mục gốc (common prefix) hay không
+    let commonPrefixSegments = [];
+    if (validItems.length > 0 && validItems[0].segments.length > 1) {
+      const firstDirs = validItems[0].segments.slice(0, -1);
+      for (let i = 0; i < firstDirs.length; i++) {
+        const seg = firstDirs[i];
+        const allMatch = validItems.every(item => item.segments.length > i + 1 && item.segments[i] === seg);
+        if (allMatch) {
+          commonPrefixSegments.push(seg);
+        } else {
+          break;
+        }
+      }
+    }
+
+    const groupsMap = new Map();
+
+    if (commonPrefixSegments.length > 0) {
+      const prefixLen = commonPrefixSegments.length;
+      // Kiểm tra xem sau common prefix có subfolder hay không
+      const hasSubdirectories = validItems.some(item => item.segments.length > prefixLen + 1);
+
+      if (hasSubdirectories) {
+        // Kéo thư mục mẹ (ví dụ Session 10 chứa Bai1, Bai2, Bai3) -> Gom theo từng thư mục con!
+        for (const item of validItems) {
+          const remaining = item.segments.slice(prefixLen);
+          let groupName = '';
+          let pathInsideRepo = '';
+
+          if (remaining.length > 1) {
+            groupName = remaining[0]; // Bai1, Bai2...
+            pathInsideRepo = remaining.slice(1).join('/'); // main.c, README.md...
+          } else {
+            groupName = cleanBaseFileName(remaining[0]);
+            pathInsideRepo = remaining[0];
+          }
+
+          const cleanName = cleanBaseFileName(groupName);
+          if (!groupsMap.has(groupName)) {
+            groupsMap.set(groupName, {
+              name: groupName,
+              cleanName: cleanName,
+              files: []
+            });
+          }
+          groupsMap.get(groupName).files.push({
+            file: item.file,
+            path: pathInsideRepo,
+            size: item.file.size || 0
+          });
+        }
+      } else {
+        // Kéo DUY NHẤT 1 thư mục bài tập (như folder Bai1 chứa main.c và README.md)
+        // -> Tạo 1 bài tập duy nhất có tên là tên thư mục Bai1!
+        const groupName = commonPrefixSegments[commonPrefixSegments.length - 1];
+        const cleanName = cleanBaseFileName(groupName);
+
+        const files = validItems.map(item => ({
+          file: item.file,
+          path: item.segments.slice(prefixLen).join('/') || item.file.name,
+          size: item.file.size || 0
+        }));
+
+        groupsMap.set(groupName, {
+          name: groupName,
+          cleanName: cleanName,
+          files: files
+        });
+      }
+    } else {
+      // Không có common prefix:
+      const hasAnyDirectory = validItems.some(item => item.segments.length > 1);
+
+      if (hasAnyDirectory) {
+        // Kéo cùng lúc nhiều thư mục (ví dụ quét chọn Bai1, Bai2, Bai3 rồi kéo vào)
+        for (const item of validItems) {
+          let groupName = '';
+          let pathInsideRepo = '';
+
+          if (item.segments.length > 1) {
+            groupName = item.segments[0];
+            pathInsideRepo = item.segments.slice(1).join('/');
+          } else {
+            groupName = cleanBaseFileName(item.segments[0]);
+            pathInsideRepo = item.segments[0];
+          }
+
+          const cleanName = cleanBaseFileName(groupName);
+          if (!groupsMap.has(groupName)) {
+            groupsMap.set(groupName, {
+              name: groupName,
+              cleanName: cleanName,
+              files: []
+            });
+          }
+          groupsMap.get(groupName).files.push({
+            file: item.file,
+            path: pathInsideRepo,
+            size: item.file.size || 0
+          });
+        }
+      } else {
+        // Kéo các file đơn lẻ (không có thư mục)
+        // Nếu chỉ kéo 1 file code và file tài liệu kèm theo (như main.c và README.md) -> Gom chung 1 repo!
+        const codeFiles = validItems.filter(it => !['readme.md', '.gitignore', 'license'].includes(it.file.name.toLowerCase()));
+        const docFiles = validItems.filter(it => ['readme.md', '.gitignore', 'license'].includes(it.file.name.toLowerCase()));
+
+        if (codeFiles.length === 1 && docFiles.length > 0) {
+          const mainCode = codeFiles[0];
+          const groupName = cleanBaseFileName(mainCode.file.name);
+          groupsMap.set(groupName, {
+            name: groupName,
+            cleanName: groupName,
+            files: validItems.map(it => ({
+              file: it.file,
+              path: it.file.name,
+              size: it.file.size || 0
+            }))
+          });
+        } else {
+          // Nhiều file code khác nhau (Bai1.cpp, Bai2.cpp...) -> Tách mỗi file 1 repo
+          for (const item of validItems) {
+            const fileName = item.file.name;
+            const cleanName = cleanBaseFileName(fileName);
+            groupsMap.set(fileName, {
+              name: fileName,
+              cleanName: cleanName,
+              files: [{
+                file: item.file,
+                path: fileName,
+                size: item.file.size || 0
+              }]
+            });
+          }
+        }
+      }
+    }
+
+    const assignments = [];
+    for (const [key, grp] of groupsMap.entries()) {
+      const totalSize = grp.files.reduce((acc, f) => acc + f.size, 0);
+      assignments.push({
+        name: grp.name,
+        cleanName: grp.cleanName,
+        repoName: generateRepoNameForBatchItem(grp.cleanName),
+        files: grp.files,
+        totalSize: totalSize,
+        status: 'pending'
+      });
+    }
+
+    return assignments;
+  }
+
+  // --- Batch Mode Handling ---
+  function handleBatchFilesSelected(collectedList) {
+    const newAssignments = groupCollectedFilesIntoAssignments(collectedList);
+
+    if (newAssignments.length === 0) {
+      showToast('Không tìm thấy bài tập hoặc file hợp lệ nào!', 'error');
+      return;
+    }
+
+    let addedCount = 0;
+    let updatedCount = 0;
+
+    newAssignments.forEach(newAss => {
+      const existing = state.batchItems.find(it => it.cleanName.toLowerCase() === newAss.cleanName.toLowerCase());
+      if (existing) {
+        // Nếu đã có bài này, bổ sung thêm file nếu chưa có
+        newAss.files.forEach(f => {
+          if (!existing.files.some(ef => ef.path === f.path)) {
+            existing.files.push(f);
+            existing.totalSize += f.size;
+            updatedCount++;
+          }
+        });
+      } else {
+        state.batchItems.push(newAss);
+        addedCount++;
+      }
+    });
+
+    fileFilesInput.value = '';
+    fileFolderInput.value = '';
+
     renderBatchTable();
 
+    const totalFilesCount = state.batchItems.reduce((acc, it) => acc + it.files.length, 0);
     if (addedCount > 0) {
-      showToast(`Đã thêm ${addedCount} bài tập (Tổng: ${state.batchItems.length} bài sẵn sàng nộp)!`, 'success');
+      showToast(`Đã nhận diện ${addedCount} bài tập (${totalFilesCount} tệp tin) sẵn sàng nộp!`, 'success');
+    } else if (updatedCount > 0) {
+      showToast(`Đã cập nhật thêm ${updatedCount} tệp tin vào danh sách bài tập!`, 'info');
     } else {
-      showToast('File này đã có sẵn trong danh sách!', 'info');
+      showToast('Các bài tập này đã có sẵn trong danh sách!', 'info');
     }
   }
 
@@ -523,13 +745,29 @@ git push -u origin main`;
         statusBadge = '<span class="batch-status-badge batch-status-error">❌ Lỗi</span>';
       }
 
+      const isMultiFile = item.files.length > 1;
+      const fileIcon = isMultiFile ? '📁' : getFileIcon(item.files[0]?.path || item.name);
+      const fileMetaSubtitle = isMultiFile 
+        ? `${item.files.length} tệp tin (${formatBytes(item.totalSize)})`
+        : formatBytes(item.totalSize);
+
+      let subfileChipsHtml = '';
+      if (isMultiFile) {
+        subfileChipsHtml = `
+          <div class="batch-files-sublist">
+            ${item.files.map(f => `<span class="batch-subfile-chip" title="${f.path}">${f.path}</span>`).join('')}
+          </div>
+        `;
+      }
+
       tr.innerHTML = `
         <td>
           <div class="batch-file-info">
-            <span class="file-icon-badge">${getFileIcon(item.filename)}</span>
+            <span class="file-icon-badge">${fileIcon}</span>
             <div>
-              <strong class="batch-file-name">${item.filename}</strong>
-              <span class="batch-file-size">${formatBytes(item.file.size)}</span>
+              <strong class="batch-file-name">${item.name}</strong>
+              <span class="batch-file-size">${fileMetaSubtitle}</span>
+              ${subfileChipsHtml}
             </div>
           </div>
         </td>
@@ -551,12 +789,12 @@ git push -u origin main`;
         state.batchItems[index].repoName = e.target.value.trim();
       });
 
-      // Xóa từng file khỏi danh sách
+      // Xóa bài này khỏi danh sách
       const btnRemove = tr.querySelector('.btn-remove-batch-item');
       btnRemove.addEventListener('click', () => {
         state.batchItems.splice(index, 1);
         renderBatchTable();
-        showToast(`Đã xóa ${item.filename} khỏi danh sách`, 'info');
+        showToast(`Đã xóa ${item.name} khỏi danh sách`, 'info');
       });
 
       batchTableBody.appendChild(tr);
@@ -578,35 +816,54 @@ git push -u origin main`;
   });
 
   // --- Single Mode Handling ---
-  function handleSingleFilesSelected(filesList) {
-    const validFiles = [];
+  function handleSingleFilesSelected(collectedList) {
+    const validItems = [];
     let ignoredCount = 0;
 
-    for (let i = 0; i < filesList.length; i++) {
-      const file = filesList[i];
-      let relativePath = file.webkitRelativePath || file.name;
-      const parts = relativePath.split('/');
-      if (parts.length > 1) {
-        relativePath = parts.slice(1).join('/');
-      }
-
-      if (isPathIgnored(relativePath)) {
+    for (const it of collectedList) {
+      let p = it.fullPath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+      if (isPathIgnored(p)) {
         ignoredCount++;
         continue;
       }
-
-      validFiles.push({
-        path: relativePath,
-        file: file
+      validItems.push({
+        file: it.file,
+        fullPath: p,
+        segments: p.split('/')
       });
     }
 
-    if (validFiles.length === 0) {
-      showToast('Không tìm thấy file hợp lệ nào!', 'error');
+    if (validItems.length === 0) {
+      showToast('Không tìm thấy tệp tin hợp lệ nào!', 'error');
       return;
     }
 
-    state.selectedFiles = validFiles;
+    // Nếu tất cả các file đều chung 1 thư mục gốc (như folder Bai1), gọt bỏ thư mục gốc để file nằm ở root repo
+    let stripPrefixLen = 0;
+    if (validItems.length > 0 && validItems[0].segments.length > 1) {
+      const topDir = validItems[0].segments[0];
+      const allShareTop = validItems.every(it => it.segments[0] === topDir);
+      if (allShareTop) {
+        stripPrefixLen = 1;
+        // Cập nhật gợi ý tên bài tập nếu chưa đặt
+        const cleanTop = cleanBaseFileName(topDir);
+        if (cleanTop) {
+          currentSelectedExerciseType = cleanTop;
+          updateRepoNameSuggestion();
+        }
+      }
+    }
+
+    state.selectedFiles = validItems.map(it => {
+      const repoPath = stripPrefixLen > 0 
+        ? it.segments.slice(stripPrefixLen).join('/') || it.file.name
+        : it.fullPath;
+      return {
+        path: repoPath,
+        file: it.file
+      };
+    });
+
     renderSelectedFilesSummary(ignoredCount);
   }
 
@@ -658,7 +915,11 @@ git push -u origin main`;
 
   fileFolderInput.addEventListener('change', (e) => {
     if (e.target.files && e.target.files.length > 0) {
-      handleFilesSelected(e.target.files);
+      const list = Array.from(e.target.files).map(f => ({
+        file: f,
+        fullPath: f.webkitRelativePath || f.name
+      }));
+      handleFilesSelected(list);
     }
   });
 
@@ -669,7 +930,11 @@ git push -u origin main`;
 
   fileFilesInput.addEventListener('change', (e) => {
     if (e.target.files && e.target.files.length > 0) {
-      handleFilesSelected(e.target.files);
+      const list = Array.from(e.target.files).map(f => ({
+        file: f,
+        fullPath: f.name
+      }));
+      handleFilesSelected(list);
     }
   });
 
@@ -700,7 +965,7 @@ git push -u origin main`;
   dropZone.addEventListener('drop', async (e) => {
     const items = e.dataTransfer.items;
     if (items && items.length > 0) {
-      const filesFound = [];
+      const collectedFiles = [];
       const queue = [];
 
       for (let i = 0; i < items.length; i++) {
@@ -708,40 +973,56 @@ git push -u origin main`;
         if (item.webkitGetAsEntry) {
           const entry = item.webkitGetAsEntry();
           if (entry) queue.push(traverseFileTree(entry, ''));
+        } else if (item.kind === 'file') {
+          const f = item.getAsFile();
+          if (f) collectedFiles.push({ file: f, fullPath: f.name });
         }
       }
 
       await Promise.all(queue);
 
-      async function traverseFileTree(item, path) {
+      async function traverseFileTree(item, currentPath) {
         if (item.isFile) {
           return new Promise(resolve => {
             item.file(file => {
-              const fullRelPath = path ? `${path}/${file.name}` : file.name;
+              const fullRelPath = currentPath ? `${currentPath}/${file.name}` : file.name;
               if (!isPathIgnored(fullRelPath)) {
-                filesFound.push(file);
+                collectedFiles.push({ file: file, fullPath: fullRelPath });
               }
               resolve();
             });
           });
         } else if (item.isDirectory) {
           if (isPathIgnored(item.name)) return;
+          const nextPath = currentPath ? `${currentPath}/${item.name}` : item.name;
           const dirReader = item.createReader();
-          return new Promise(resolve => {
-            dirReader.readEntries(async entries => {
-              for (const child of entries) {
-                await traverseFileTree(child, path ? `${path}/${item.name}` : item.name);
-              }
-              resolve();
+
+          // Đọc toàn bộ entries kể cả khi thư mục có nhiều hơn 100 file
+          const readAllEntries = () => {
+            return new Promise(resolve => {
+              dirReader.readEntries(async entries => {
+                if (entries.length === 0) {
+                  resolve();
+                } else {
+                  for (const child of entries) {
+                    await traverseFileTree(child, nextPath);
+                  }
+                  await readAllEntries();
+                  resolve();
+                }
+              });
             });
-          });
+          };
+
+          return readAllEntries();
         }
       }
 
-      if (filesFound.length > 0) {
-        handleFilesSelected(filesFound);
+      if (collectedFiles.length > 0) {
+        handleFilesSelected(collectedFiles);
       } else if (e.dataTransfer.files.length > 0) {
-        handleFilesSelected(e.dataTransfer.files);
+        const fallbackList = Array.from(e.dataTransfer.files).map(f => ({ file: f, fullPath: f.name }));
+        handleFilesSelected(fallbackList);
       }
     }
   });
@@ -882,31 +1163,36 @@ Thumbs.db
         logProgress(`[${i + 1}/${total}] Đang tạo Repository: ${state.user.login}/${item.repoName}`);
 
         try {
-          // 1. Tạo Repo (chỉ bật autoInit nếu người dùng chủ động tích chọn README)
+          // 1. Tạo Repo
           const repoDesc = inputRepoDesc.value.trim() || `Bài tập ${item.cleanName} môn ${inputSubjectName.value.trim() || 'IT206'}`;
           const isReadmeEnabled = Boolean(optGenerateReadme && optGenerateReadme.checked);
           const isGitignoreEnabled = Boolean(optGenerateGitignore && optGenerateGitignore.checked);
+          const hasReadme = item.files.some(f => f.path.toLowerCase() === 'readme.md');
 
           const newRepo = await client.createRepository({
             name: item.repoName,
             description: repoDesc,
             isPrivate: isPrivate,
-            autoInit: isReadmeEnabled
+            autoInit: isReadmeEnabled && !hasReadme
           });
 
-          // 2. Upload file bài tập (chỉ thêm README hay .gitignore nếu được chọn)
-          const uploadFiles = [
-            { path: item.filename, file: item.file }
-          ];
+          // 2. Upload tất cả file trong bài tập này
+          const uploadFiles = item.files.map(f => ({
+            path: f.path,
+            file: f.file
+          }));
 
-          if (isReadmeEnabled) {
+          // Chỉ thêm README.md tự sinh nếu người dùng bật và trong bài chưa có file README.md
+          if (isReadmeEnabled && !hasReadme) {
             uploadFiles.push({
               path: 'README.md',
-              content: generateReadmeContent(item.repoName, newRepo.html_url, item.filename)
+              content: generateReadmeContent(item.repoName, newRepo.html_url, item.name)
             });
           }
 
-          if (isGitignoreEnabled) {
+          // Chỉ thêm .gitignore nếu người dùng bật và trong bài chưa có .gitignore
+          const hasGitignore = uploadFiles.some(f => f.path.toLowerCase() === '.gitignore');
+          if (isGitignoreEnabled && !hasGitignore) {
             uploadFiles.push({
               path: '.gitignore',
               content: generateGitignoreContent()
@@ -919,7 +1205,12 @@ Thumbs.db
             item.repoName,
             uploadFiles,
             commitMsg,
-            () => {}
+            (prog) => {
+              if (prog.step === 'blobs') {
+                const subPct = currentPercent + Math.round((prog.current / prog.total) * (80 / total));
+                updateProgressBar(subPct, `[${i + 1}/${total}] Đang đẩy tệp ${prog.current}/${prog.total}: ${prog.filename}`);
+              }
+            }
           );
 
           item.status = 'done';
