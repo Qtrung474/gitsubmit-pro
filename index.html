@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GitSubmit Pro - Tự Động Tạo Repo & Nộp Bài Tập Lên GitHub</title>
+  <meta name="description" content="Công cụ tự động hóa tạo GitHub Repository, tải mã nguồn và tạo link nộp bài tập chỉ với 1 cú click dành cho học sinh, sinh viên và lập trình viên.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="background-glow glow-1"></div>
+  <div class="background-glow glow-2"></div>
+  <div class="background-glow glow-3"></div>
+
+  <!-- App Header -->
+  <header class="app-header">
+    <div class="container header-container">
+      <div class="brand-wrapper">
+        <div class="brand-logo">
+          <svg class="git-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="18" cy="18" r="3"></circle>
+            <circle cx="6" cy="6" r="3"></circle>
+            <path d="M13 6h3a2 2 0 0 1 2 2v7"></path>
+            <line x1="6" y1="9" x2="6" y2="21"></line>
+          </svg>
+          <span class="logo-pulse"></span>
+        </div>
+        <div>
+          <h1 class="brand-title">GitSubmit <span class="badge-pro">PRO</span></h1>
+          <p class="brand-subtitle">Tự động tạo Repo & nộp bài tập GitHub</p>
+        </div>
+      </div>
+
+      <!-- User Profile / GitHub Auth Status -->
+      <div class="header-actions">
+        <div id="user-badge" class="user-badge hidden">
+          <img id="user-avatar" src="" alt="Avatar" class="user-avatar">
+          <div class="user-meta">
+            <span id="user-login" class="user-name">Đang tải...</span>
+            <span class="user-status-dot online"></span>
+          </div>
+          <button id="btn-logout" class="btn-icon" title="Đổi Token / Đăng xuất">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+          </button>
+        </div>
+        <button id="btn-settings-modal" class="btn-secondary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-svg"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+          <span>Cấu hình Token</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="container app-main">
+    
+    <!-- Token Setup Banner (if no token) -->
+    <section id="token-banner" class="token-alert-banner">
+      <div class="banner-icon-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-1.5 6.1L16 11l-3-3 2.1-2.1a4.5 4.5 0 1 0-6.36 6.36L11 14.5l-2 2-2-2-3 3 2 2-3 3 3 3 2-2 2 2 3-3-2-2 2-2 2.36 2.36a4.5 4.5 0 1 0 6.36-6.36z"></path></svg>
+      </div>
+      <div class="banner-content">
+        <h3>Chưa kết nối GitHub Personal Access Token</h3>
+        <p>Để ứng dụng có thể thay bạn tự tạo Repo và đẩy bài tập tự động, bạn chỉ cần dán GitHub Token 1 lần duy nhất (được lưu an toàn trong máy của bạn, không gửi qua máy chủ nào khác).</p>
+      </div>
+      <button id="btn-quick-token" class="btn-primary pulse-btn">Kết Nối Token Ngay</button>
+    </section>
+
+    <!-- App Workflow Grid -->
+    <div class="workflow-grid">
+      
+      <!-- Left Column: Assignment Details & Upload Area -->
+      <section class="card workflow-card main-form-card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="step-badge">Bước 1</span>
+            <h2>Thông Tin & Chế Độ Nộp Bài</h2>
+          </div>
+          <span class="text-hint">Chọn chế độ nộp 1 bài hoặc nộp hàng loạt nhiều file (mỗi file 1 repo riêng)</span>
+        </div>
+
+        <!-- Mode Switcher Tabs -->
+        <div class="mode-tabs">
+          <button type="button" class="mode-tab active" id="tab-batch-mode">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+            <span>Nộp Hàng Loạt (Mỗi File 1 Repo Riêng)</span>
+            <span class="badge-mini">Khuyên dùng</span>
+          </button>
+          <button type="button" class="mode-tab" id="tab-single-mode">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+            <span>Nộp 1 Bài Tập Đơn Lẻ</span>
+          </button>
+        </div>
+
+        <form id="submission-form" class="form-grid" onsubmit="return false;">
+          
+          <!-- Student Info Quick Fill -->
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="student-name">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="input-icon"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                Họ và Tên
+              </label>
+              <input type="text" id="student-name" placeholder="Ví dụ: Nguyễn Văn An" autocomplete="name">
+            </div>
+
+            <div class="form-group">
+              <label for="student-id">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="input-icon"><rect x="3" y="4" width="18" height="16" rx="2"></rect><line x1="7" y1="8" x2="17" y2="8"></line><line x1="7" y1="12" x2="13" y2="12"></line><line x1="7" y1="16" x2="10" y2="16"></line></svg>
+                Mã Số Sinh Viên (MSSV)
+              </label>
+              <input type="text" id="student-id" placeholder="Ví dụ: 21127001">
+            </div>
+          </div>
+
+          <!-- Subject & Session -->
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="subject-name">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="input-icon"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
+                Mã Môn Học / Lớp
+              </label>
+              <input type="text" id="subject-name" placeholder="Ví dụ: IT206, IT101, WEB201" value="IT206">
+            </div>
+
+            <div class="form-group">
+              <label for="session-number">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="input-icon"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                Buổi Học / Session
+              </label>
+              <div class="input-inline-btn">
+                <input type="text" id="session-number" placeholder="Ví dụ: Session2, Lab2, Buoi2" value="Session2">
+              </div>
+            </div>
+          </div>
+
+          <!-- Single Mode Only Fields -->
+          <div id="single-mode-fields" class="single-mode-fields hidden">
+            <!-- Quick Exercise Preset Buttons -->
+            <div class="preset-pills-wrap">
+              <span class="preset-label">Chọn nhanh bài tập mẫu trường học:</span>
+              <div class="preset-pills">
+                <button type="button" class="preset-pill active" data-type="Bai1">Bai1</button>
+                <button type="button" class="preset-pill" data-type="Bai2">Bai2</button>
+                <button type="button" class="preset-pill" data-type="Bai3">Bai3</button>
+                <button type="button" class="preset-pill" data-type="Bai4">Bai4</button>
+                <button type="button" class="preset-pill" data-type="BTTH">BTTH</button>
+                <button type="button" class="preset-pill" data-type="Assignment">Assignment</button>
+              </div>
+            </div>
+
+            <!-- Generated Repo Name & Options -->
+            <div class="form-group">
+              <div class="repo-name-header">
+                <label for="repo-name">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="input-icon"><line x1="6" y1="3" x2="6" y2="15"></line><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><path d="M18 9a9 9 0 0 1-9 9"></path></svg>
+                  Tên Repository GitHub Sẽ Tạo
+                </label>
+                <button type="button" id="btn-regen-name" class="btn-text-action" title="Tạo lại tên theo mẫu">Khôi phục tên mẫu</button>
+              </div>
+              <div class="input-prefix-wrapper">
+                <span class="input-prefix" id="repo-prefix-preview">github.com/username/</span>
+                <input type="text" id="repo-name" class="input-with-prefix" value="Bai1_Session2_IT206" placeholder="Bai1_Session2_IT206">
+              </div>
+              <span class="input-desc">Định dạng chuẩn của trường: <code>[TênBài]_[Session]_[MãMôn]</code> (Ví dụ: <code>Bai1_Session2_IT206</code>)</span>
+            </div>
+          </div>
+
+          <!-- Description & Privacy -->
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="repo-desc">Mô tả Repo (Description)</label>
+              <input type="text" id="repo-desc" placeholder="Bài tập môn IT206">
+            </div>
+
+            <div class="form-group">
+              <label>Chế độ hiển thị</label>
+              <div class="radio-pill-group">
+                <label class="radio-pill">
+                  <input type="radio" name="repo-visibility" value="public" checked>
+                  <span class="pill-content">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                    Công khai (Public)
+                  </span>
+                </label>
+                <label class="radio-pill">
+                  <input type="radio" name="repo-visibility" value="private">
+                  <span class="pill-content">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                    Riêng tư (Private)
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 2: Upload Area -->
+          <div class="step-divider">
+            <span class="step-badge">Bước 2</span>
+            <h3 id="step2-heading">Chọn Các File Bài Tập (Ví dụ: Bai1.cpp, Bai2.cpp, BTTH.cpp)</h3>
+          </div>
+
+          <div id="batch-mode-banner" class="batch-mode-banner">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+            <span><strong>Chế độ Hàng Loạt Bật:</strong> Chọn bao nhiêu file thì hệ thống sẽ tự động tạo bấy nhiêu Repository riêng biệt (Ví dụ: chọn <code>Bai1.cpp</code>, <code>Bai2.cpp</code>, <code>BTTH.cpp</code> -> Tự tạo 3 repo tương ứng và xuất ra 3 link riêng biệt!).</span>
+          </div>
+
+          <div id="drop-zone" class="drop-zone">
+            <input type="file" id="file-folder-input" webkitdirectory directory multiple class="hidden-file-input">
+            <input type="file" id="file-files-input" multiple class="hidden-file-input">
+            
+            <div class="drop-zone-content">
+              <div class="drop-icon-wrapper">
+                <svg class="drop-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+                  <polyline points="12 11 12 17"></polyline>
+                  <polyline points="9 14 12 11 15 14"></polyline>
+                </svg>
+              </div>
+              <h4 class="drop-title" id="drop-title-text">Kéo & Thả các file bài tập vào đây (Bai1, Bai2, BTTH...)</h4>
+              <p class="drop-subtitle" id="drop-subtitle-text">Hệ thống sẽ tự nhận diện tên file để đặt tên cho từng Repo</p>
+              
+              <div class="drop-actions">
+                <button type="button" id="btn-pick-files" class="btn-picker">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                  Chọn Các File Bài Tập (Chọn Nhiều File)
+                </button>
+                <button type="button" id="btn-pick-folder" class="btn-picker-secondary">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+                  Chọn Thư Mục Chứa Tất Cả Bài
+                </button>
+              </div>
+
+              <div class="drop-help-tip">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                <span><strong>Mẹo chọn nhiều file trong Windows:</strong> Giữ phím <code>Ctrl</code> và click vào từng file (hoặc quét chuột). Hoặc bạn có thể bấm nút chọn nhiều lần để <strong>cộng dồn từng file</strong> vào danh sách!</span>
+              </div>
+
+              <div class="drop-safety-note">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                Tự động bỏ qua các file rác và thư mục tạm
+              </div>
+            </div>
+          </div>
+
+          <!-- Batch Table List Preview -->
+          <div id="batch-table-card" class="batch-table-card hidden">
+            <div class="batch-table-header">
+              <span class="badge-accent" id="batch-item-count">0 bài tập được phát hiện</span>
+              <div class="batch-header-actions">
+                <button type="button" id="btn-add-more-batch" class="btn-xs btn-add-more">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                  ➕ Thêm file khác
+                </button>
+                <button type="button" id="btn-clear-batch-files" class="btn-text-danger">Xóa tất cả</button>
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="batch-preview-table">
+                <thead>
+                  <tr>
+                    <th>File bài tập</th>
+                    <th>Tên Repo sẽ tạo trên GitHub</th>
+                    <th>Trạng thái</th>
+                    <th style="width: 50px; text-align: center;">Xóa</th>
+                  </tr>
+                </thead>
+                <tbody id="batch-table-body"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Single Selected Files Preview List -->
+          <div id="files-summary-card" class="files-summary-card hidden">
+            <div class="files-summary-header">
+              <div class="summary-stat">
+                <span id="summary-file-count" class="summary-badge">0 files</span>
+                <span id="summary-file-size" class="summary-size">0 KB</span>
+              </div>
+              <button type="button" id="btn-clear-files" class="btn-text-danger">Xóa chọn lại</button>
+            </div>
+            <div id="files-tree-list" class="files-tree-list"></div>
+          </div>
+
+          <!-- Options Toggles -->
+          <div class="options-checklist">
+            <label class="checkbox-container">
+              <input type="checkbox" id="opt-generate-readme">
+              <span class="checkmark"></span>
+              <span class="checkbox-label">
+                <strong>Tạo kèm file README.md (Mặc định: TẮT để chỉ có duy nhất file bài làm)</strong>
+                <small>Nếu tắt, Repo sẽ hoàn toàn sạch sẽ, chỉ chứa đúng 1 file bài tập (như bai2.docx)</small>
+              </span>
+            </label>
+            <label class="checkbox-container">
+              <input type="checkbox" id="opt-generate-gitignore">
+              <span class="checkmark"></span>
+              <span class="checkbox-label">
+                <strong>Thêm file .gitignore tiêu chuẩn</strong>
+                <small>Tùy chọn bỏ qua các file tạm</small>
+              </span>
+            </label>
+          </div>
+
+          <!-- Submit Button -->
+          <div class="action-submit-wrapper">
+            <button type="button" id="btn-start-process" class="btn-magic-submit">
+              <span class="btn-shine"></span>
+              <span class="btn-content">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" class="btn-magic-icon">
+                  <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"></path>
+                  <path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"></path>
+                  <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"></path>
+                  <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"></path>
+                </svg>
+                <span id="submit-btn-text">Tạo Repo & Lấy Link Nộp Bài</span>
+              </span>
+            </button>
+          </div>
+
+          <!-- Progress and Live Status Indicator -->
+          <div id="progress-container" class="progress-container hidden">
+            <div class="progress-header">
+              <span id="progress-status-text" class="progress-status-text">Đang khởi tạo...</span>
+              <span id="progress-percent" class="progress-percent">0%</span>
+            </div>
+            <div class="progress-bar-track">
+              <div id="progress-bar-fill" class="progress-bar-fill" style="width: 0%;"></div>
+            </div>
+            <div id="progress-logs" class="progress-logs"></div>
+          </div>
+
+        </form>
+      </section>
+
+      <!-- Right Column: Result Box, Quick Submission Templates, Git CLI Alternative -->
+      <section class="result-column">
+        
+        <!-- Live Result Box (Appears after submission or can preview) -->
+        <div id="result-success-card" class="card result-card hidden">
+          <div class="result-banner">
+            <div class="success-icon-badge">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            </div>
+            <div class="result-header-text">
+              <h3>Đã Nộp Bài & Tạo Repo Thành Công!</h3>
+              <p>Repository của bạn đã sẵn sàng trên GitHub</p>
+            </div>
+          </div>
+
+          <!-- Single Direct Repo Link Box -->
+          <div id="single-result-box" class="repo-link-box">
+            <div class="repo-link-display">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
+              <input type="text" id="final-repo-url" readonly value="">
+            </div>
+            <div class="repo-link-actions">
+              <button id="btn-copy-link" class="btn-copy">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                Copy Link
+              </button>
+              <a id="btn-open-repo" href="#" target="_blank" class="btn-open">
+                Mở Repo
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+              </a>
+            </div>
+          </div>
+
+          <!-- Batch Results List Box (Displays multiple links like user requested) -->
+          <div id="batch-results-box" class="batch-results-box hidden">
+            <div class="batch-results-header">
+              <h4>Danh Sách Link Từng Bài Đã Tạo Thành Công</h4>
+              <button type="button" id="btn-copy-all-git-links" class="btn-sm-copy">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                Copy Tất Cả Link (.git)
+              </button>
+            </div>
+            <div id="batch-links-container" class="batch-links-container"></div>
+          </div>
+
+          <!-- Quick Submission Message Generator -->
+          <div class="submission-template-box">
+            <div class="template-header">
+              <h4>Mẫu Nội Dung Nộp Bài Cho Thầy Cô</h4>
+              <button id="btn-copy-template" class="btn-sm-copy">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                Sao chép tin nhắn nộp bài
+              </button>
+            </div>
+            <textarea id="submission-message-preview" class="template-textarea" rows="5" readonly></textarea>
+            <span class="text-hint">Bạn có thể dán trực tiếp đoạn văn này vào Zalo / Google Classroom / Canvas / Mail cho thầy cô!</span>
+          </div>
+        </div>
+
+        <!-- CLI / Command Line Alternative Card -->
+        <div class="card cli-helper-card">
+          <div class="card-header-compact">
+            <div class="cli-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+              <h3>Hoặc Dùng Lệnh Git Terminal 1 Cú Click</h3>
+            </div>
+            <button id="btn-copy-cli" class="btn-xs">Copy lệnh</button>
+          </div>
+          <p class="cli-desc">Nếu bạn đã có sẵn Git trên máy và muốn tự chạy lệnh trong Terminal thư mục bài tập:</p>
+          <pre class="cli-code-block"><code id="cli-commands-preview">git init
+git add .
+git commit -m "Submit homework"
+git branch -M main
+git remote add origin https://github.com/USER/REPO.git
+git push -u origin main</code></pre>
+        </div>
+
+        <!-- Submission History & Archive -->
+        <div class="card history-card">
+          <div class="card-header-compact">
+            <div class="cli-title">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
+              <h3>Lịch Sử Các Bài Đã Nộp</h3>
+            </div>
+            <button id="btn-clear-history" class="btn-text-danger" title="Xóa lịch sử">Xóa lịch sử</button>
+          </div>
+
+          <div id="history-empty" class="history-empty">
+            Chưa có bài nộp nào được lưu. Sau khi nộp bài đầu tiên, link và thông tin sẽ xuất hiện tại đây để bạn xem lại bất cứ lúc nào!
+          </div>
+
+          <div id="history-list" class="history-list hidden"></div>
+        </div>
+
+      </section>
+
+    </div>
+
+  </main>
+
+  <!-- GitHub Token Settings Modal -->
+  <div id="token-modal" class="modal-overlay hidden">
+    <div class="modal-container">
+      <div class="modal-header">
+        <div class="modal-title-wrap">
+          <div class="modal-icon-badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-1.5 6.1L16 11l-3-3 2.1-2.1a4.5 4.5 0 1 0-6.36 6.36L11 14.5l-2 2-2-2-3 3 2 2-3 3 3 3 2-2 2 2 3-3-2-2 2-2 2.36 2.36a4.5 4.5 0 1 0 6.36-6.36z"></path></svg>
+          </div>
+          <div>
+            <h3>Cài Đặt GitHub Personal Access Token</h3>
+            <p>Token giúp ứng dụng kết nối trực tiếp với tài khoản GitHub của bạn</p>
+          </div>
+        </div>
+        <button id="btn-close-modal" class="btn-close-modal">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="input-pat-token">GitHub Token (Personal Access Token - Classic hoặc Fine-grained)</label>
+          <div class="token-input-wrap">
+            <input type="password" id="input-pat-token" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx hoặc github_pat_..." autocomplete="off">
+            <button type="button" id="btn-toggle-token-visibility" class="btn-icon">
+              <svg id="eye-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+            </button>
+          </div>
+          <span class="input-desc">Token chỉ lưu trong trình duyệt của bạn (LocalStorage) và gọi thẳng đến GitHub API.</span>
+        </div>
+
+        <div class="token-guide-box">
+          <h4>Cách lấy GitHub Token chỉ mất 30 giây:</h4>
+          <ol class="guide-steps">
+            <li>Truy cập <a href="https://github.com/settings/tokens/new" target="_blank" rel="noopener">GitHub Token Settings (Mở trang này)</a>.</li>
+            <li>Tại phần <strong>Note</strong>: Đặt tên gợi nhớ (ví dụ: <code>GitSubmit Homework</code>).</li>
+            <li>Tại phần <strong>Expiration</strong>: Chọn 90 ngày hoặc No expiration.</li>
+            <li>Tại phần <strong>Select scopes</strong>: Tích chọn duy nhất ô <code>repo</code> (Full control of private repositories).</li>
+            <li>Cuộn xuống dưới cùng bấm <strong>Generate token</strong> màu xanh lá.</li>
+            <li>Sao chép mã bắt đầu bằng <code>ghp_...</code> và dán vào ô trên!</li>
+          </ol>
+        </div>
+
+        <div id="token-test-feedback" class="token-feedback hidden"></div>
+      </div>
+
+      <div class="modal-footer">
+        <button id="btn-test-save-token" class="btn-primary w-full">
+          <span id="token-btn-text">Kiểm Tra & Lưu Token</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- App Scripts -->
+  <script src="github-api.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
