@@ -188,6 +188,19 @@ document.addEventListener('DOMContentLoaded', () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }
 
+  function sanitizeRepoSlug(text) {
+    if (!text) return '';
+    return text
+      .toString()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '') // Chuyển tiếng Việt có dấu thành không dấu
+      .replace(/[\s\t\n]+/g, '_')     // Thay khoảng trắng thành dấu gạch dưới _
+      .replace(/[^a-zA-Z0-9_.-]/g, '')// Chỉ giữ chữ cái, số, gạch dưới, gạch ngang, dấu chấm
+      .replace(/_+/g, '_')           // Rút gọn nhiều dấu gạch dưới liên tiếp
+      .replace(/^[-_.]+|[-_.]+$/g, '')// Không bắt đầu hoặc kết thúc bằng ký tự đặc biệt
+      .slice(0, 100);                 // GitHub giới hạn tên repo tối đa 100 ký tự
+  }
+
   function cleanBaseFileName(fileName) {
     let base = fileName;
     const dotIndex = fileName.lastIndexOf('.');
@@ -195,38 +208,40 @@ document.addEventListener('DOMContentLoaded', () => {
     if (dotIndex > 0) {
       base = fileName.substring(0, dotIndex);
     }
-    // Chuyển dấu cách thành _ và loại bỏ ký tự không an toàn cho tên repo GitHub
-    return base.trim().replace(/\s+/g, '_').replace(/[^a-zA-Z0-9_-]/g, '') || 'Exercise';
+    return sanitizeRepoSlug(base) || 'Exercise';
   }
 
   function generateRepoNameForBatchItem(cleanName) {
-    const session = inputSessionNumber ? inputSessionNumber.value.trim() : 'Session2';
-    const subject = inputSubjectName ? inputSubjectName.value.trim() : 'IT206';
+    const rawSession = inputSessionNumber ? inputSessionNumber.value.trim() : 'Session2';
+    const rawSubject = inputSubjectName ? inputSubjectName.value.trim() : 'IT206';
 
-    let base = cleanName;
+    const session = sanitizeRepoSlug(rawSession);
+    const subject = sanitizeRepoSlug(rawSubject);
+    const base = sanitizeRepoSlug(cleanName) || 'Bai1';
+
     if (session && base.toLowerCase().includes(session.toLowerCase())) {
       if (subject && !base.toLowerCase().includes(subject.toLowerCase())) {
-        return `${base}_${subject}`;
+        return sanitizeRepoSlug(`${base}_${subject}`);
       }
       return base;
     }
     const parts = [base];
     if (session) parts.push(session);
     if (subject) parts.push(subject);
-    return parts.join('_');
+    return sanitizeRepoSlug(parts.join('_'));
   }
 
   function generateStandardRepoName() {
-    const exerciseType = currentSelectedExerciseType || 'Bai1';
-    const session = inputSessionNumber ? inputSessionNumber.value.trim() : 'Session2';
-    const subject = inputSubjectName ? inputSubjectName.value.trim() : 'IT206';
+    const exerciseType = sanitizeRepoSlug(currentSelectedExerciseType || 'Bai1');
+    const session = sanitizeRepoSlug(inputSessionNumber ? inputSessionNumber.value.trim() : 'Session2');
+    const subject = sanitizeRepoSlug(inputSubjectName ? inputSubjectName.value.trim() : 'IT206');
 
     const parts = [];
     if (exerciseType) parts.push(exerciseType);
     if (session) parts.push(session);
     if (subject) parts.push(subject);
 
-    return parts.join('_');
+    return sanitizeRepoSlug(parts.join('_'));
   }
 
   function updateRepoNameSuggestion() {
@@ -742,7 +757,13 @@ git push -u origin main`;
       } else if (item.status === 'done') {
         statusBadge = '<span class="batch-status-badge batch-status-done">✅ Đã xong</span>';
       } else if (item.status === 'error') {
-        statusBadge = '<span class="batch-status-badge batch-status-error">❌ Lỗi</span>';
+        const escapedErr = (item.errorMessage || 'Lỗi khi tạo repo hoặc tải file').replace(/"/g, '&quot;');
+        statusBadge = `
+          <div class="batch-status-error-wrap">
+            <span class="batch-status-badge batch-status-error" title="${escapedErr}">❌ Lỗi</span>
+            ${item.errorMessage ? `<div class="batch-status-err-msg" title="${escapedErr}">${item.errorMessage}</div>` : ''}
+          </div>
+        `;
       }
 
       const isMultiFile = item.files.length > 1;
@@ -774,7 +795,7 @@ git push -u origin main`;
         <td>
           <div class="repo-slug-wrap">
             <span class="repo-owner-tag">@${userLoginText}/</span>
-            <input type="text" class="batch-row-input" value="${item.repoName}" data-index="${index}" title="Bạn có thể chỉnh sửa tên repo này nếu muốn">
+            <input type="text" class="batch-row-input" value="${item.repoName}" data-index="${index}" title="Bạn có thể chỉnh sửa tên repo này nếu muốn (không chứa khoảng trắng)">
           </div>
         </td>
         <td>${statusBadge}</td>
@@ -786,7 +807,12 @@ git push -u origin main`;
       // Cho phép sửa trực tiếp tên repo trên bảng
       const inputEl = tr.querySelector('.batch-row-input');
       inputEl.addEventListener('input', (e) => {
-        state.batchItems[index].repoName = e.target.value.trim();
+        state.batchItems[index].repoName = e.target.value;
+      });
+      inputEl.addEventListener('blur', (e) => {
+        const cleanVal = sanitizeRepoSlug(e.target.value);
+        e.target.value = cleanVal;
+        state.batchItems[index].repoName = cleanVal;
       });
 
       // Xóa bài này khỏi danh sách
@@ -1155,7 +1181,9 @@ Thumbs.db
 
       for (let i = 0; i < total; i++) {
         const item = state.batchItems[i];
+        item.repoName = sanitizeRepoSlug(item.repoName) || `Exercise_${i + 1}`;
         item.status = 'uploading';
+        item.errorMessage = null;
         renderBatchTable();
 
         const currentPercent = Math.round(((i) / total) * 90) + 5;
@@ -1214,6 +1242,7 @@ Thumbs.db
           );
 
           item.status = 'done';
+          item.errorMessage = null;
           item.repoUrl = `${newRepo.html_url}.git`;
           completedLinks.push({
             name: item.repoName,
@@ -1238,6 +1267,7 @@ Thumbs.db
 
         } catch (subErr) {
           item.status = 'error';
+          item.errorMessage = subErr.message || 'Lỗi khi tạo repo hoặc tải file';
           logProgress(`Lỗi khi tạo ${item.repoName}: ${subErr.message}`, 'error');
         }
 
@@ -1320,11 +1350,11 @@ Thumbs.db
 
   // --- Chạy Xử Lý Nộp 1 Bài (Single Mode) ---
   async function processSingleSubmission() {
-    let repoName = inputRepoName.value.trim();
+    let repoName = sanitizeRepoSlug(inputRepoName.value.trim());
     if (!repoName) {
       repoName = generateStandardRepoName();
-      inputRepoName.value = repoName;
     }
+    inputRepoName.value = repoName;
 
     if (state.selectedFiles.length === 0) {
       const confirmContinue = confirm('Bạn chưa chọn tệp tin bài tập nào. Tạo repo trống có sẵn README?');

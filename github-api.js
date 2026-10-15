@@ -82,7 +82,23 @@ class GitHubClient {
         }
       }
       const err = await response.json().catch(() => ({}));
-      throw new Error(err.message || `Không thể tạo repo (${response.status})`);
+      let msg = err.message || `Không thể tạo repo (${response.status})`;
+      if (err.errors && Array.isArray(err.errors)) {
+        const details = err.errors.map(e => e.message || e.field).join(', ');
+        if (details) msg += ` - Chi tiết: ${details}`;
+      }
+      if (response.status === 401) {
+        msg = 'GitHub Token không hợp lệ hoặc đã hết hạn!';
+      } else if (response.status === 403) {
+        msg = 'Token không có quyền tạo repository. Vui lòng cấp quyền "repo" cho Personal Access Token!';
+      } else if (response.status === 422) {
+        if (name.includes(' ') || /\s/.test(name)) {
+          msg = `Tên repo "${name}" chứa khoảng trắng (dấu cách), GitHub không cho phép!`;
+        } else {
+          msg = `Tên repo "${name}" không hợp lệ hoặc chứa ký tự đặc biệt bị GitHub cấm!`;
+        }
+      }
+      throw new Error(msg);
     }
 
     return await response.json();
@@ -151,7 +167,11 @@ class GitHubClient {
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.message || `Lỗi khi tải file ${filePath} (${res.status})`);
+      let msg = err.message || `Lỗi khi tải file ${filePath} (${res.status})`;
+      if (res.status === 403 || res.status === 404) {
+        msg = `Token không có quyền ghi/đẩy file vào repository. Cần cấp quyền "repo" (Classic) hoặc "Contents: Read and write" (Fine-grained).`;
+      }
+      throw new Error(msg);
     }
 
     return await res.json();
